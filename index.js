@@ -45,21 +45,7 @@ function postNewEvent(event) {
     method: "POST",
     json: true,
     body: {
-      text: "Looks like this event is new:",
-      attachments: [
-        {
-          title: event.name,
-          title_link: `https://www.facebook.com/events/${event.id}/`,
-          text: event.description,
-          fields: [
-            {
-              title: "Location",
-              value: event.place ? event.place.name || "Unknown" : "Unknown",
-              short: false
-            }
-          ]
-        }
-      ]
+      text: `Looks like this event is new: https://www.facebook.com/events/${event.id}`
     }
   });
 }
