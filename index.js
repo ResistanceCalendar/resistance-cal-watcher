@@ -40,14 +40,28 @@ function checkForEvents(events) {
 }
 
 function postNewEvent(event) {
-  const msg =
-    `Looks like this event is new:
-    Name: ${event.name}
-    Link: https://www.facebook.com/events/${event.id}/
-    Location: ${event.place ? event.place.name || "Unknown" : "Unknown"}
-    ${event.attending_count} attending, ${event.interested_count} interested
-    Description: ${event.description}`;
-  console.log(msg);
+  return request({
+    uri: process.env.SLACK_ENDPOINT,
+    method: "POST",
+    json: true,
+    body: {
+      text: "Looks like this event is new:",
+      attachments: [
+        {
+          title: event.name,
+          title_link: `https://www.facebook.com/events/${event.id}/`,
+          text: event.description,
+          fields: [
+            {
+              title: "Location",
+              value: event.place ? event.place.name || "Unknown" : "Unknown",
+              short: false
+            }
+          ]
+        }
+      ]
+    }
+  });
 }
 
 function main() {

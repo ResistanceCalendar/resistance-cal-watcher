@@ -11,7 +11,8 @@
       "program": "${workspaceRoot}\\index.js",
       "cwd": "${workspaceRoot}",
       "env": {
-        "FB_TOKEN": "EAACEdEose0cBAHvl9ZAAVbzqZCNsq4ylakv60w66frphp1zV2gYVm2bFLXN8ULICAZCGPKKrEStEg0jlmKmnp7GK1pVXynqwZBIMwkCcKz6pF8Q6YZCRc8i4rdPYZA60PX6sZAYAQbGVblEYjY5M1PujP6lWgxFP4kvEvv7XIqaWCPZCJysZCZAZCCgKCgMSE4xzBQZD"
+        "FB_TOKEN": "384196378613480|9eaf8b25fbcc899817f595f3d10d65c8",
+        "SLACK_ENDPOINT": "https://hooks.slack.com/services/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"
       }
     },
     {
