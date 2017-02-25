@@ -45,7 +45,7 @@ function postNewEvent(event) {
     method: "POST",
     json: true,
     body: {
-      text: `Looks like this event is new: https://www.facebook.com/events/${event.id}`
+      text: `https://www.facebook.com/events/${event.id}`
     }
   });
 }
