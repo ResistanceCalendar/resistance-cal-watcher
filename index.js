@@ -67,11 +67,11 @@ function postNewEvent(event) {
 function main() {
   getEvents()
     .then(events => {
-      const existingIds = JSON.parse(fs.readFileSync("event_ids.txt"));
+      const existingIds = JSON.parse(fs.readFileSync(__dirname + "/event_ids.txt"));
       const newEvents = events.filter(i => !existingIds.includes(i.id));
       console.log(`Got ${events.length} events from Facebook, ${newEvents.length} of which are new`)
       existingIds.push(...newEvents.map(i => i.id));
-      fs.writeFileSync("event_ids.txt", JSON.stringify(existingIds));
+      fs.writeFileSync(__dirname + "/event_ids.txt", JSON.stringify(existingIds));
       return checkForEvents(newEvents);
     })
     .then(newEvents => {
@@ -83,7 +83,7 @@ function main() {
 function init() {
   getEvents()
     .then(events => {
-      fs.writeFileSync("event_ids.txt", JSON.stringify(events.map(i => i.id)))
+      fs.writeFileSync(__dirname + "/event_ids.txt", JSON.stringify(events.map(i => i.id)))
       console.log(`Initialized with ${events.length} events.`);
     })
 }
