@@ -62,7 +62,13 @@ function main() {
     })
     .then(newEvents => {
       console.log(`Looks like ${newEvents.length} events are new`);
-      return Promise.all(newEvents.map(postNewEvent));
+      function sendNextEvent() {
+        postNewEvent(newEvents.pop());
+        if (newEvents.length) {
+          setTimeout(sendNextEvent, 1000);
+        }
+      }
+      sendNextEvent();
     })
 }
 
