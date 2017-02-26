@@ -45,8 +45,7 @@ function postNewEvent(event) {
     method: "POST",
     json: true,
     body: {
-      text: `https://www.facebook.com/events/${event.id} (${event.attending_count} attending, ${event.interested_count} interested)`,
-      channel: "@chostetter"
+      text: `https://www.facebook.com/events/${event.id} (${event.attending_count} attending, ${event.interested_count} interested)`
     }
   });
 }
@@ -63,7 +62,7 @@ function main() {
     })
     .then(newEvents => {
       console.log(`Looks like ${newEvents.length} events are new`);
-      newEvents.sort((a, b) => a.attending_count - b.attending_count)
+      newEvents.sort((a, b) => b.attending_count - a.attending_count)
       function sendNextEvent() {
         postNewEvent(newEvents.pop());
         if (newEvents.length) {
