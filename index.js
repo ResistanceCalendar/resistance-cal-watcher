@@ -68,7 +68,7 @@ function main() {
           setTimeout(sendNextEvent, 1000);
         }
       }
-      sendNextEvent();
+      if (newEvents.length) sendNextEvent();
     })
 }
 
