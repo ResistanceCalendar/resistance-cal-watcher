@@ -76,10 +76,6 @@ function main () {
       });
     }).then(() => {
       return Promise.mapSeries(sources['facebook'], function (source) {
-        if (source.toLowerCase().contains("naacp") ||
-            source.toLowerCase().contains("indivisible") ||
-            source.toLowerCase().contains("momsdemandaction"))
-
         return getFacebookEvents(source)
           .then(events => {
             const upcomingEvents = events.filter(event => {
