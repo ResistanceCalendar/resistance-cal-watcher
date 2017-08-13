@@ -1,10 +1,25 @@
 'use strict';
 
 const request = require('request-promise');
-const fs = require('fs');
-const path = require('path');
+const mongoose = require('mongoose');
 const Promise = require('bluebird');
 const sources = require('./resource/source.json');
+
+var FacebookEvent = mongoose.model('FacebookEvent', mongoose.Schema({
+  id: String
+}));
+
+/*
+ * Use mongo db to store visited event IDs
+ */
+const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/rc_test';
+const db = mongoose.createConnection(mongoUri, {promiseLibrary: Promise});
+mongoose.connect(mongoUri);
+
+db.on('error', console.error.bind(console, 'connection error'));
+db.once('open', function callback () {
+  console.log('Connection with database succeeded.');
+});
 
 function getFacebookEvents (accountName) {
   const events = [];
@@ -34,7 +49,7 @@ function postNewEvent (event, source) {
     method: 'POST',
     json: true,
     body: {
-      text: `https://www.facebook.com/events/${event.id} from ${source} (${event.attending_count} attending, ${event.interested_count} interested)`
+      text: `${source}: <https://www.facebook.com/events/${event.id}|${event.name}> (${event.attending_count} attending, ${event.interested_count} interested)`
     }
   });
 }
@@ -43,43 +58,57 @@ function main () {
   Promise.all(sources['facebook'].map(function (source) {
     return getFacebookEvents(source)
       .then(events => {
-        const idsFile = `/event_ids-${source}.txt`;
-        const existingIds = JSON.parse(fs.readFileSync(path.join(__dirname, idsFile)));
-        const newEvents = events.filter(i => !existingIds.includes(i.id));
-        console.log(`Got ${events.length} events from Facebook ${source}, ${newEvents.length} of which are new`);
-        existingIds.push(...newEvents.map(i => i.id));
-        fs.writeFileSync(path.join(__dirname, idsFile), JSON.stringify(existingIds));
-        return checkForEvents(newEvents);
-      })
-      .then(newEvents => {
-        console.log(`Looks like ${newEvents.length} ${source} events are new`);
-        newEvents.sort((a, b) => b.attending_count - a.attending_count);
-        function sendNextEvent () {
-          postNewEvent(newEvents.pop(), source);
-          if (newEvents.length) {
-            setTimeout(sendNextEvent, 1000);
+        FacebookEvent.find(function (err, docs) {
+          if (err) console.err(err);
+          const existingIds = docs.map((event) => event.id);
+          const newEvents = events.filter(i => !existingIds.includes(i.id));
+          const eventsToAdd = checkForEvents(newEvents);
+          console.log(`Got ${events.length} events from Facebook/${source}, ${eventsToAdd.length} of which are new`);
+
+          eventsToAdd.sort((a, b) => b.attending_count - a.attending_count);
+          function sendNextEvent () {
+            const event = eventsToAdd.pop();
+            postNewEvent(event, source)
+              .then(() => {
+                const mongoEvent = new FacebookEvent({id: event.id});
+                mongoEvent.save(function (err) {
+                  if (err) console.err(err);
+                });
+              });
+            if (eventsToAdd.length) {
+              setTimeout(sendNextEvent, 1000);
+            }
           }
-        }
-        if (newEvents.length) sendNextEvent();
+          if (eventsToAdd.length) sendNextEvent();
+        });
       })
-    .then(() => {
-      console.log(`Updates for ${source} complete`);
-    });
+      .then(() => {
+        console.log(`Updates for ${source} complete`);
+      });
   })).then(() => {
     console.log('All updates complete');
   });
 }
 
 function init () {
-  const initializers = sources['facebook'].map(function (source) {
+  Promise.all(sources['facebook'].map(function (source) {
     return getFacebookEvents(source)
       .then(events => {
         console.log(`Initializing ${source} with ${events.length} events.`);
-        fs.writeFileSync(path.join(__dirname, `/event_ids-${source}.txt`), JSON.stringify(events.map(i => i.id)));
+        events.forEach((event) => {
+          FacebookEvent.findOne({id: event.id}, function (err, doc) {
+            if (err) console.err(err);
+            if (!doc) {
+              const mongoEvent = new FacebookEvent({id: event.id});
+              mongoEvent.save(function (err) {
+                if (err) console.err(err);
+              });
+            }
+          });
+        });
         console.log(`Initialized ${source} with ${events.length} events.`);
       });
-  });
-  Promise.all(initializers).then(() => {
+  })).then(() => {
     console.log('Initialization complete');
   });
 }
