@@ -58,29 +58,21 @@ function main () {
   Promise.all(sources['facebook'].map(function (source) {
     return getFacebookEvents(source)
       .then(events => {
-        FacebookEvent.find(function (err, docs) {
-          if (err) console.err(err);
-          const existingIds = docs.map((event) => event.id);
-          const newEvents = events.filter(i => !existingIds.includes(i.id));
-          const eventsToAdd = checkForEvents(newEvents);
-          console.log(`Got ${events.length} events from Facebook/${source}, ${eventsToAdd.length} of which are new`);
+        events.forEach(function (event) {
+          FacebookEvent.findOne({id: event.id}, function (err, doc) {
+            if (err) console.err(err);
 
-          eventsToAdd.sort((a, b) => b.attending_count - a.attending_count);
-          function sendNextEvent () {
-            const event = eventsToAdd.pop();
-            postNewEvent(event, source)
-              .then(() => {
-                const mongoEvent = new FacebookEvent({id: event.id});
-                mongoEvent.save(function (err) {
-                  if (err) console.err(err);
-                  console.log('.');
+            if (!doc) {
+              postNewEvent(event, source)
+                .then(() => {
+                  const mongoEvent = new FacebookEvent({id: event.id});
+                  mongoEvent.save(function (err) {
+                    if (err) console.err(err);
+                    console.log('.');
+                  });
                 });
-              });
-            if (eventsToAdd.length) {
-              setTimeout(sendNextEvent, 1000);
             }
-          }
-          if (eventsToAdd.length) sendNextEvent();
+          });
         });
       })
       .then(() => {
@@ -92,13 +84,20 @@ function main () {
 }
 
 function init () {
+  const now = new Date();
   Promise.all(sources['facebook'].map(function (source) {
     return getFacebookEvents(source)
       .then(events => {
-        console.log(`Initializing ${source} with ${events.length} events.`);
-        events.forEach((event) => {
+        const previousEvents = events.filter(event => {
+          const eventStartTime = new Date(event.start_time);
+          return eventStartTime < now;
+        });
+
+        console.log(`Initializing ${source} with ${previousEvents.length} events.`);
+        previousEvents.forEach((event) => {
           FacebookEvent.findOne({id: event.id}, function (err, doc) {
             if (err) console.err(err);
+
             if (!doc) {
               const mongoEvent = new FacebookEvent({id: event.id});
               mongoEvent.save(function (err) {
@@ -107,8 +106,10 @@ function init () {
             }
           });
         });
-        console.log(`Initialized ${source} with ${events.length} events.`);
-      });
+      })
+    .then(() => {
+      console.log(`Initialized ${source}.`);
+    });
   })).then(() => {
     console.log('Initialization complete');
   });
