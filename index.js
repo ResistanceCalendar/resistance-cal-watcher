@@ -73,6 +73,7 @@ function main () {
                 const mongoEvent = new FacebookEvent({id: event.id});
                 mongoEvent.save(function (err) {
                   if (err) console.err(err);
+                  console.log('.');
                 });
               });
             if (eventsToAdd.length) {
