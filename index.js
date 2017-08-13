@@ -5,7 +5,7 @@ const mongoose = require('mongoose');
 const Promise = require('bluebird');
 const sources = require('./resource/source.json');
 
-var FacebookEvent = mongoose.model('FacebookEvent', mongoose.Schema({
+const FacebookEvent = mongoose.model('FacebookEvent', mongoose.Schema({
   id: String
 }));
 
@@ -38,80 +38,86 @@ function getFacebookEvents (accountName) {
   return getPage(`https://graph.facebook.com/v2.8/${accountName}/events?access_token=${process.env.FB_TOKEN}&limit=100&fields=id,name,description,start_time,attending_count,place,interested_count`);
 }
 
-function postNewEvent (event, source) {
-  return request({
-    uri: process.env.SLACK_ENDPOINT,
-    method: 'POST',
-    json: true,
-    body: {
-      text: `${source}: <https://www.facebook.com/events/${event.id}|${event.name}> (${event.attending_count} attending, ${event.interested_count} interested)`
-    }
-  });
+function postNewEvent (source, event) {
+  if (source === 'resistance-calendar') {
+    return Promise.resolve(null);
+  } else {
+    return request({
+      uri: process.env.SLACK_ENDPOINT,
+      method: 'POST',
+      json: true,
+      body: {
+        text: `${source}: <https://www.facebook.com/events/${event.id}|${event.name}> (${event.attending_count} attending, ${event.interested_count} interested)`
+      }
+    });
+  }
 }
 
 function main () {
-  Promise.all(sources['facebook'].map(function (source) {
-    return getFacebookEvents(source)
-      .then(events => {
-        events.forEach(function (event) {
-          FacebookEvent.findOne({id: event.id}, function (err, doc) {
-            if (err) console.err(err);
-
-            if (!doc) {
-              postNewEvent(event, source)
-                .then(() => {
-                  const mongoEvent = new FacebookEvent({id: event.id});
-                  mongoEvent.save(function (err) {
-                    if (err) console.err(err);
-                    console.log('.');
-                  });
-                });
-            }
-          });
-        });
-      })
-      .then(() => {
-        console.log(`Updates for ${source} complete`);
-      });
-  })).then(() => {
-    console.log('All updates complete');
-  });
-}
-
-function init () {
   const now = new Date();
-  Promise.all(sources['facebook'].map(function (source) {
-    return getFacebookEvents(source)
-      .then(events => {
-        const previousEvents = events.filter(event => {
-          const eventStartTime = new Date(event.start_time);
-          return eventStartTime < now;
+
+  getFacebookEvents('resistance-calendar')
+    .then(events => {
+      const upcomingEvents = events.filter(event => {
+        const eventStartTime = new Date(event.start_time);
+        return eventStartTime > now;
+      });
+
+      upcomingEvents.forEach(function (event) {
+        FacebookEvent.findOne({id: event.id}, function (err, doc) {
+          if (err) console.err(err);
+          if (!doc) {
+            const mongoEvent = new FacebookEvent({id: event.id});
+            mongoEvent.save(function (err) {
+              if (err) console.err(err);
+            });
+          }
         });
+      });
+    }).then(() => {
+      return Promise.mapSeries(sources['facebook'], function (source) {
+        if (source.toLowerCase().contains("naacp") ||
+            source.toLowerCase().contains("indivisible") ||
+            source.toLowerCase().contains("momsdemandaction"))
 
-        console.log(`Initializing ${source} with ${previousEvents.length} events.`);
-        previousEvents.forEach((event) => {
-          FacebookEvent.findOne({id: event.id}, function (err, doc) {
-            if (err) console.err(err);
+        return getFacebookEvents(source)
+          .then(events => {
+            const upcomingEvents = events.filter(event => {
+              const eventStartTime = new Date(event.start_time);
+              return eventStartTime > now;
+            });
 
-            if (!doc) {
-              const mongoEvent = new FacebookEvent({id: event.id});
-              mongoEvent.save(function (err) {
+            console.log(`Found ${upcomingEvents.length} upcoming events for ${source}.`);
+            upcomingEvents.sort((a, b) => b.attending_count - a.attending_count);
+
+            function sendNextEvent () {
+              const event = upcomingEvents.pop();
+              FacebookEvent.findOne({id: event.id}, function (err, doc) {
                 if (err) console.err(err);
+                if (!doc) {
+                  postNewEvent(source, event)
+                    .then(() => {
+                      const mongoEvent = new FacebookEvent({id: event.id});
+                      mongoEvent.save(function (err) {
+                        if (err) console.err(err);
+                        console.log('. ');
+                      });
+                    });
+                }
               });
+              if (upcomingEvents.length) {
+                setTimeout(sendNextEvent, 1000);
+              }
             }
+            if (upcomingEvents.length) sendNextEvent();
+          })
+          .then(() => {
+            console.log(`Updates for ${source} complete`);
           });
-        });
-      })
-    .then(() => {
-      console.log(`Initialized ${source}.`);
+      }).then(() => {
+        console.log('All updates complete');
+      });
     });
-  })).then(() => {
-    console.log('Initialization complete');
-  });
 }
 
-if (process.argv[2] === 'init') {
-  init();
-} else {
-  main();
-}
+main();
