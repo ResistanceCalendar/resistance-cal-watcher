@@ -75,7 +75,7 @@ function main () {
         });
       });
     }).then(() => {
-      return Promise.each(sources['facebook'], function (source) {
+      sources['facebook'].forEach(function (source) {
         return getFacebookEvents(source)
           .then(events => {
             const upcomingEvents = events.filter(event => {
@@ -110,8 +110,6 @@ function main () {
           .then(() => {
             console.log(`Updates for ${source} complete`);
           });
-      }).then(() => {
-        console.log('All updates complete');
       });
     });
 }
