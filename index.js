@@ -75,7 +75,7 @@ function main () {
         });
       });
     }).then(() => {
-      return Promise.mapSeries(sources['facebook'], function (source) {
+      return Promise.each(sources['facebook'], function (source) {
         return getFacebookEvents(source)
           .then(events => {
             const upcomingEvents = events.filter(event => {
