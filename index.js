@@ -53,6 +53,23 @@ function postNewEvent (source, event) {
   }
 }
 
+function filterFacebookEvents (now, facebookEvents) {
+  const upcomingEvents = facebookEvents.filter(event => {
+    const eventStartTime = new Date(event.start_time);
+    return eventStartTime > now;
+  });
+
+  // In order to avoid posting low attended events to the slack
+  // channel, only add events above some threshold of attendance.
+  // Subsequent runs of this servce will eventually add the events
+  // once they meet this threshold
+  const attendedEvents = upcomingEvents.filter(event => {
+    return event.attending_count > 5;
+  });
+
+  return attendedEvents;
+}
+
 function main () {
   const now = new Date();
 
@@ -60,21 +77,9 @@ function main () {
   // database so that already added events are ignored and the process does
   // not require an additional initialization step
   getFacebookEvents('resistance-calendar')
-    .then(events => {
-      const upcomingEvents = events.filter(event => {
-        const eventStartTime = new Date(event.start_time);
-        return eventStartTime > now;
-      });
-
-      // In order to avoid posting low attended events to the slack
-      // channel, only add events above some threshold of attendance.
-      // Subsequent runs of this servce will eventually add the events
-      // once they meet this threshold
-      const attendedEvents = upcomingEvents.filter(event => {
-        return event.attending_count > 5;
-      });
-
-      attendedEvents.forEach(function (event) {
+    .then(facebookEvents => {
+      const events = filterFacebookEvents(now, facebookEvents);
+      events.forEach(function (event) {
         FacebookEvent.findOne({id: event.id}, function (err, doc) {
           if (err) console.err(err);
           if (!doc) {
@@ -89,25 +94,14 @@ function main () {
       // Iterate over entries in the facebook array in the organizations list
       sources['facebook'].forEach(function (source) {
         return getFacebookEvents(source)
-          .then(events => {
-            const upcomingEvents = events.filter(event => {
-              const eventStartTime = new Date(event.start_time);
-              return eventStartTime > now;
-            });
+          .then(facebookEvents => {
+            const events = filterFacebookEvents(now, facebookEvents);
 
-            // In order to avoid posting low attended events to the slack
-            // channel, only add events above some threshold of attendance.
-            // Subsequent runs of this servce will eventually add the events
-            // once they meet this threshold
-            const attendedEvents = upcomingEvents.filter(event => {
-              return event.attending_count > 5;
-            });
-
-            console.log(`Found ${attendedEvents.length} upcoming and semi-attended events for ${source}.`);
-            attendedEvents.sort((a, b) => b.attending_count - a.attending_count);
+            console.log(`Found ${events.length} upcoming and semi-attended events for ${source}.`);
+            events.sort((a, b) => b.attending_count - a.attending_count);
 
             function sendNextEvent () {
-              const event = attendedEvents.pop();
+              const event = events.pop();
               FacebookEvent.findOne({id: event.id}, function (err, doc) {
                 if (err) console.err(err);
                 if (!doc) {
@@ -121,11 +115,11 @@ function main () {
                     });
                 }
               });
-              if (attendedEvents.length) {
+              if (events.length) {
                 setTimeout(sendNextEvent, 1000);
               }
             }
-            if (attendedEvents.length) sendNextEvent();
+            if (events.length) sendNextEvent();
           })
           .then(() => {
             console.log(`Updates for ${source} complete`);
