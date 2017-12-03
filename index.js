@@ -66,7 +66,15 @@ function main () {
         return eventStartTime > now;
       });
 
-      upcomingEvents.forEach(function (event) {
+      // In order to avoid posting low attended events to the slack
+      // channel, only add events above some threshold of attendance.
+      // Subsequent runs of this servce will eventually add the events
+      // once they meet this threshold
+      const attendedEvents = upcomingEvents.filter(event => {
+        return event.attending_count > 5;
+      });
+
+      attendedEvents.forEach(function (event) {
         FacebookEvent.findOne({id: event.id}, function (err, doc) {
           if (err) console.err(err);
           if (!doc) {
