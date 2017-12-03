@@ -56,6 +56,9 @@ function postNewEvent (source, event) {
 function main () {
   const now = new Date();
 
+  // Lazily load all events from the resistance-calendar page to initialize the
+  // database so that already added events are ignored and the process does
+  // not require an additional initialization step
   getFacebookEvents('resistance-calendar')
     .then(events => {
       const upcomingEvents = events.filter(event => {
@@ -75,6 +78,7 @@ function main () {
         });
       });
     }).then(() => {
+      // Iterate over entries in the facebook array in the organizations list
       sources['facebook'].forEach(function (source) {
         return getFacebookEvents(source)
           .then(events => {
@@ -83,11 +87,19 @@ function main () {
               return eventStartTime > now;
             });
 
-            console.log(`Found ${upcomingEvents.length} upcoming events for ${source}.`);
-            upcomingEvents.sort((a, b) => b.attending_count - a.attending_count);
+            // In order to avoid posting low attended events to the slack
+            // channel, only add events above some threshold of attendance.
+            // Subsequent runs of this servce will eventually add the events
+            // once they meet this threshold
+            const attendedEvents = upcomingEvents.filter(event => {
+              return event.attending_count > 5;
+            });
+
+            console.log(`Found ${attendedEvents.length} upcoming and semi-attended events for ${source}.`);
+            attendedEvents.sort((a, b) => b.attending_count - a.attending_count);
 
             function sendNextEvent () {
-              const event = upcomingEvents.pop();
+              const event = attendedEvents.pop();
               FacebookEvent.findOne({id: event.id}, function (err, doc) {
                 if (err) console.err(err);
                 if (!doc) {
@@ -101,11 +113,11 @@ function main () {
                     });
                 }
               });
-              if (upcomingEvents.length) {
+              if (attendedEvents.length) {
                 setTimeout(sendNextEvent, 1000);
               }
             }
-            if (upcomingEvents.length) sendNextEvent();
+            if (attendedEvents.length) sendNextEvent();
           })
           .then(() => {
             console.log(`Updates for ${source} complete`);
