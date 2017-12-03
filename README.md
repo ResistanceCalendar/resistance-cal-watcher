@@ -1,10 +1,3 @@
-Simple scraper to post new Resistance Calendar events to slack.
+Simple scraper to post new Resistance Calendar events to slack run as a cron process.
 
-There's no database, it just uses the filesystem to remember which events it's seen before.
-
-Setup:
-
-1. Run `npm install` to install dependencies
-2. Set `FB_TOKEN` and `SLACK_ENDPOINT` environment variables
-3. Run `node index.js init` to generate an initial list of event IDs
-4. Run `node index.js` to check for new events and post to Slack if we find any (you probably want to add this command to a crontab or something)
+On initialization the process will lazily initialize the database with existing events from the main resistence calendar facebook page. Afterwards a the resource/source.json file is read to scrape each facebook account page to gather the events listed and post to the relevant slack page.
